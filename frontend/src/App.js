@@ -81,8 +81,6 @@ function App() {
     setSubmitMessage('');
 
     try {
-      const backendUrl = process.env.REACT_APP_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL;
-      
       // Convert camelCase to snake_case for backend
       const backendData = {
         client_name: formData.clientName,
