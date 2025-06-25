@@ -141,6 +141,7 @@ def calculate_quote_cost(quote_data: QuoteRequest) -> float:
         'Spot UV': 0.80,
         'Foiling (Gold)': 1.20,
         'Foiling (Silver)': 1.00,
+        'Foiling (Other)': 1.30,
         'Embossing': 1.50,
         'Debossing': 1.50,
         'Die Cutting': 2.00,
@@ -149,6 +150,20 @@ def calculate_quote_cost(quote_data: QuoteRequest) -> float:
     }
     
     finishing_cost = sum(finishing_costs.get(option, 0.0) for option in quote_data.finishing_options)
+    
+    # Ink costs
+    ink_costs = {
+        'CMYK': 0.15,
+        'Black Only': 0.05,
+        'Custom': 0.25
+    }
+    
+    ink_cost = ink_costs.get(quote_data.ink_type, 0.10)
+    
+    # PMS color costs
+    pms_cost = 0.0
+    if quote_data.pms_colors:
+        pms_cost = quote_data.pms_color_count * 0.35
     
     # Delivery costs
     delivery_costs = {
