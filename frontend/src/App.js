@@ -99,7 +99,6 @@ function App() {
         pms_color_count: parseInt(formData.pmsColorCount)
       };
 
-      const backendUrl = process.env.REACT_APP_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL;
       const response = await fetch(`${backendUrl}/api/quotes`, {
         method: 'POST',
         headers: {
