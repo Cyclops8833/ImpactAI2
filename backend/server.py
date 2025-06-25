@@ -453,6 +453,30 @@ async def update_quote_status(quote_id: str, status: str):
         logger.error(f"Error updating quote status: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+@app.get("/api/quotes/{quote_id}/export")
+async def export_quote(quote_id: str):
+    """Export quote as PDF"""
+    try:
+        quote = quotes_collection.find_one({"quote_id": quote_id}, {"_id": 0})
+        
+        if not quote:
+            raise HTTPException(status_code=404, detail="Quote not found")
+        
+        # Generate PDF
+        pdf_buffer = generate_quote_pdf(quote)
+        
+        return StreamingResponse(
+            io.BytesIO(pdf_buffer.read()),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=quote_{quote_id}.pdf"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error exporting quote: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
 @app.delete("/api/quotes/{quote_id}")
 async def delete_quote(quote_id: str):
     """Delete a quote"""
