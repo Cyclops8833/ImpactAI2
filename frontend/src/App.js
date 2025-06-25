@@ -298,6 +298,58 @@ function App() {
                       placeholder="e.g., 500"
                     />
                   </div>
+
+                  <div>
+                    <label htmlFor="inkType" className="block text-sm font-medium text-gray-700 mb-2">
+                      Ink Type *
+                    </label>
+                    <select
+                      id="inkType"
+                      name="inkType"
+                      value={formData.inkType}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+                    >
+                      <option value="">Select ink type</option>
+                      {inkOptions.map(ink => (
+                        <option key={ink} value={ink}>{ink}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* PMS Colors Section */}
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <label className="flex items-center mb-3">
+                    <input
+                      type="checkbox"
+                      name="pmsColors"
+                      checked={formData.pmsColors}
+                      onChange={handleInputChange}
+                      className="mr-3 text-indigo-600 focus:ring-indigo-500 rounded"
+                    />
+                    <span className="text-sm font-medium text-gray-700">PMS Colors Required</span>
+                  </label>
+                  
+                  {formData.pmsColors && (
+                    <div className="mt-3">
+                      <label htmlFor="pmsColorCount" className="block text-sm font-medium text-gray-700 mb-2">
+                        Number of PMS Colors
+                      </label>
+                      <select
+                        id="pmsColorCount"
+                        name="pmsColorCount"
+                        value={formData.pmsColorCount}
+                        onChange={handleInputChange}
+                        className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
+                      >
+                        {[1,2,3,4,5,6,7,8].map(num => (
+                          <option key={num} value={num}>{num}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
