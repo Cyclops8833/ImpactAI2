@@ -153,27 +153,33 @@ backend:
 frontend:
   - task: "Quote Form Interface"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/App.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Updated form with new fields: removed A6 Long, added Foiling (Other), added Ink Type dropdown (CMYK, Black Only, Custom), PMS Colors checkbox with count selector."
+      - working: true
+        agent: "testing"
+        comment: "All form fields tested and working correctly. Verified A6 Long is not present in Finished Size options. Confirmed Foiling (Other) is present in finishing options. Verified Ink Type dropdown has CMYK, Black Only, and Custom options. PMS Colors checkbox and count selector (1-8) working correctly. Single/double sided radio buttons and numeric inputs for Page Count and Quantity all functioning properly."
 
   - task: "Quote Export Button"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/frontend/src/App.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Added export PDF button that appears after quote generation, handles PDF download via backend API."
+      - working: true
+        agent: "testing"
+        comment: "Quote Export Button tested and working correctly. After generating a quote, the Export PDF button appears and successfully triggers a PDF download when clicked. The PDF file is downloaded with the correct filename format (quote_[ID].pdf)."
 
 metadata:
   created_by: "main_agent"
