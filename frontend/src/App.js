@@ -46,7 +46,10 @@ function App() {
     finishingOptions: [],
     quantity: '',
     deliveryLocation: '',
-    specialRequirements: ''
+    specialRequirements: '',
+    inkType: '',
+    pmsColors: false,
+    pmsColorCount: 1
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
