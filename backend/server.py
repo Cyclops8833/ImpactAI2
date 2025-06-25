@@ -8,6 +8,7 @@ from datetime import datetime
 import uuid
 from pymongo import MongoClient
 import logging
+import time
 import io
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter, A4
