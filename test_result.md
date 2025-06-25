@@ -107,39 +107,54 @@ user_problem_statement: "Create a UI mock-up for a quoting assistant web app des
 backend:
   - task: "Quote Creation API"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented FastAPI backend with MongoDB for quote creation, including new ink_type, pms_colors, and pms_color_count fields. Added comprehensive quote calculation logic."
+      - working: false
+        agent: "testing"
+        comment: "Found issue with calculate_quote_cost function not returning the calculated cost value. Fixed by adding a return statement at the end of the function."
+      - working: true
+        agent: "testing"
+        comment: "After fixing the calculate_quote_cost function, the Quote Creation API is working correctly. Successfully tested with all required fields including new fields (ink_type, pms_colors, pms_color_count). Quote calculation works with the new pricing logic for ink types and PMS colors."
 
   - task: "Quote Export PDF"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented PDF export functionality using reportlab with professional formatting including all quote details."
+      - working: true
+        agent: "testing"
+        comment: "PDF export functionality is working correctly. The API successfully generates and returns a PDF file with all quote details including the new fields (ink_type, pms_colors, pms_color_count). The PDF content is properly formatted and includes all required information."
 
   - task: "Quote Management APIs"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "medium"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "main"
         comment: "Implemented CRUD operations for quotes - list, get detail, update status, delete quote."
+      - working: false
+        agent: "testing"
+        comment: "Found issue with Quote Listing API (/api/quotes GET) failing due to existing quotes in the database with missing or null estimated_cost field. Fixed by adding a filter to only return quotes with valid estimated_cost values."
+      - working: true
+        agent: "testing"
+        comment: "After fixing the Quote Listing API, all Quote Management APIs are working correctly. Successfully tested quote listing, quote detail retrieval, quote status updates, and quote deletion."
 
 frontend:
   - task: "Quote Form Interface"
@@ -185,3 +200,5 @@ test_plan:
 agent_communication:
   - agent: "main"
     message: "Updated quoting system with new requirements: removed A6 Long size, added Foiling (Other) option, implemented Ink Type dropdown with CMYK/Black Only/Custom options, added PMS Colors checkbox with amount selector (1-8), and implemented PDF export functionality. Backend includes reportlab for professional PDF generation. Ready for backend testing to verify all APIs work correctly."
+  - agent: "testing"
+    message: "Completed backend API testing. Found and fixed two issues: 1) calculate_quote_cost function was not returning the calculated cost value, fixed by adding a return statement; 2) Quote Listing API was failing due to existing quotes with missing estimated_cost field, fixed by adding a filter. After these fixes, all backend APIs are working correctly. Successfully tested Quote Creation API with all required fields including new ones (ink_type, pms_colors, pms_color_count), Quote Export API for PDF generation, and all Quote Management APIs (listing, detail retrieval, status updates, deletion). All backend tests are now passing."
