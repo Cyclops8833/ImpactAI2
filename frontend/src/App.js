@@ -142,7 +142,6 @@ function App() {
     if (!currentQuote) return;
     
     try {
-      const backendUrl = process.env.REACT_APP_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL;
       const response = await fetch(`${backendUrl}/api/quotes/${currentQuote.quote_id}/export`, {
         method: 'GET',
         headers: {
