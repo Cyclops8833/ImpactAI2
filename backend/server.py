@@ -191,7 +191,7 @@ def calculate_quote_cost(quote_data: QuoteRequest) -> float:
         quantity_discount = 0.0
     
     # Calculate total
-    unit_cost = base_cost * size_multiplier * page_multiplier * sidedness_multiplier + stock_cost + finishing_cost
+    unit_cost = base_cost * size_multiplier * page_multiplier * sidedness_multiplier + stock_cost + finishing_cost + ink_cost + pms_cost
     total_print_cost = unit_cost * quote_data.quantity
     discounted_cost = total_print_cost * (1 - quantity_discount)
     total_cost = discounted_cost + delivery_cost
