@@ -30,6 +30,10 @@ const deliveryLocations = [
   'Interstate (SA)', 'Interstate (WA)', 'Interstate (TAS)', 'Interstate (NT)', 'Interstate (ACT)'
 ];
 
+const inkOptions = [
+  'CMYK', 'Black Only', 'Custom'
+];
+
 function App() {
   const [formData, setFormData] = useState({
     clientName: '',
