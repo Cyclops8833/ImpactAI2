@@ -79,8 +79,10 @@ function App() {
     setSubmitMessage('');
 
     try {
-      // Convert camelCase to snake_case for backend API
-      const convertedData = {
+      const backendUrl = process.env.REACT_APP_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL;
+      
+      // Convert camelCase to snake_case for backend
+      const backendData = {
         client_name: formData.clientName,
         product_type: formData.productType,
         finished_size: formData.finishedSize,
