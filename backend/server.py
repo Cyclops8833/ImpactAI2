@@ -73,6 +73,9 @@ class QuoteDetail(QuoteResponse):
     quantity: int
     delivery_location: str
     special_requirements: Optional[str]
+    ink_type: str
+    pms_colors: bool
+    pms_color_count: int
 
 # Quote calculation logic
 def calculate_quote_cost(quote_data: QuoteRequest) -> float:
