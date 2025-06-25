@@ -227,6 +227,9 @@ async def create_quote(quote_request: QuoteRequest):
             "quantity": quote_request.quantity,
             "delivery_location": quote_request.delivery_location,
             "special_requirements": quote_request.special_requirements,
+            "ink_type": quote_request.ink_type,
+            "pms_colors": quote_request.pms_colors,
+            "pms_color_count": quote_request.pms_color_count,
             "estimated_cost": estimated_cost,
             "created_at": datetime.utcnow(),
             "status": "pending"
