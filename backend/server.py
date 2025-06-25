@@ -397,7 +397,7 @@ async def get_quotes(limit: int = 50, offset: int = 0):
     """Get all quotes with pagination"""
     try:
         quotes = list(quotes_collection.find(
-            {},
+            {"estimated_cost": {"$exists": True, "$ne": None}},  # Only get quotes with valid estimated_cost
             {
                 "quote_id": 1,
                 "client_name": 1,
