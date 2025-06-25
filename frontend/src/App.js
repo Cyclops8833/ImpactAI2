@@ -21,7 +21,7 @@ const textStockOptions = [
 ];
 
 const finishingOptions = [
-  'Matt Laminate', 'Gloss Laminate', 'Spot UV', 'Foiling (Gold)', 'Foiling (Silver)',
+  'Matt Laminate', 'Gloss Laminate', 'Spot UV', 'Foiling (Gold)', 'Foiling (Silver)', 'Foiling (Other)',
   'Embossing', 'Debossing', 'Die Cutting', 'Perfect Binding', 'Saddle Stitching'
 ];
 
