@@ -90,6 +90,7 @@ function App() {
 
       if (response.ok) {
         const result = await response.json();
+        setCurrentQuote(result);
         setSubmitMessage(`Quote generated successfully! Quote ID: ${result.quote_id}`);
         // Reset form
         setFormData({
