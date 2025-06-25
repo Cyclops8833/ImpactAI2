@@ -51,6 +51,9 @@ class QuoteRequest(BaseModel):
     quantity: int = Field(..., gt=0, description="Quantity to print")
     delivery_location: str = Field(..., description="Delivery location")
     special_requirements: Optional[str] = Field(None, description="Special requirements")
+    ink_type: str = Field(..., description="Ink type (CMYK, Black Only, Custom)")
+    pms_colors: bool = Field(default=False, description="PMS colors required")
+    pms_color_count: int = Field(default=1, description="Number of PMS colors")
 
 class QuoteResponse(BaseModel):
     quote_id: str
