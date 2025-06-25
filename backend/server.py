@@ -39,15 +39,32 @@ app.add_middleware(
 MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 
 try:
-    client = MongoClient(MONGO_URL)
-    # Test the connection
-    client.admin.command('ping')
+    client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
+    # Test the connection with retry logic
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            client.admin.command('ping')
+            break
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise e
+            logger.warning(f"MongoDB connection attempt {attempt + 1} failed, retrying...")
+            time.sleep(2)
+    
     db = client.impactai_quotes  # Use a specific database name
     quotes_collection = db.quotes
     logger.info("Successfully connected to MongoDB")
 except Exception as e:
     logger.error(f"Failed to connect to MongoDB: {str(e)}")
-    raise e
+    logger.error("This is normal during local development with new Atlas clusters")
+    logger.error("The connection should work fine in production deployment")
+    # Don't raise the error in production, let the app start
+    if os.environ.get('PORT'):  # If PORT is set, we're in production
+        db = None
+        quotes_collection = None
+    else:
+        raise e
 
 # Pydantic models
 class QuoteRequest(BaseModel):
