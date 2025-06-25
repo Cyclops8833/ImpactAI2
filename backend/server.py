@@ -23,10 +23,12 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(title="Print Quote Assistant API", version="1.0.0")
 
-# CORS configuration
+# CORS configuration for production
+ALLOWED_ORIGINS = os.environ.get('ALLOWED_ORIGINS', '*').split(',')
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
