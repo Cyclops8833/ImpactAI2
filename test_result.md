@@ -201,4 +201,8 @@ agent_communication:
   - agent: "main"
     message: "Updated quoting system with new requirements: removed A6 Long size, added Foiling (Other) option, implemented Ink Type dropdown with CMYK/Black Only/Custom options, added PMS Colors checkbox with amount selector (1-8), and implemented PDF export functionality. Backend includes reportlab for professional PDF generation. Ready for backend testing to verify all APIs work correctly."
   - agent: "testing"
+    message: "Backend testing completed successfully. All APIs working correctly including quote creation with new fields, PDF export, and quote management. Fixed calculate_quote_cost function and quote listing API. Ready for frontend testing."
+  - agent: "main"
+    message: "Backend testing completed successfully. Now proceeding with frontend testing to verify all form fields work correctly, quote generation functions properly, and PDF export works from the UI before making visual improvements with ImpactAI branding."
+  - agent: "testing"
     message: "Completed backend API testing. Found and fixed two issues: 1) calculate_quote_cost function was not returning the calculated cost value, fixed by adding a return statement; 2) Quote Listing API was failing due to existing quotes with missing estimated_cost field, fixed by adding a filter. After these fixes, all backend APIs are working correctly. Successfully tested Quote Creation API with all required fields including new ones (ink_type, pms_colors, pms_color_count), Quote Export API for PDF generation, and all Quote Management APIs (listing, detail retrieval, status updates, deletion). All backend tests are now passing."
