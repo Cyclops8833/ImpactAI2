@@ -196,7 +196,141 @@ def calculate_quote_cost(quote_data: QuoteRequest) -> float:
     discounted_cost = total_print_cost * (1 - quantity_discount)
     total_cost = discounted_cost + delivery_cost
     
-    return round(total_cost, 2)
+def generate_quote_pdf(quote_data):
+    """Generate PDF quote document"""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch)
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=20,
+        spaceAfter=30,
+        textColor=colors.HexColor('#4F46E5'),
+        alignment=1  # Center alignment
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        spaceAfter=12,
+        textColor=colors.HexColor('#1F2937')
+    )
+    
+    # Story (content)
+    story = []
+    
+    # Title
+    story.append(Paragraph("PRINT QUOTE", title_style))
+    story.append(Spacer(1, 20))
+    
+    # Quote Information
+    story.append(Paragraph("Quote Information", heading_style))
+    quote_info = [
+        ['Quote ID:', quote_data['quote_id']],
+        ['Date:', quote_data['created_at'].strftime('%d/%m/%Y')],
+        ['Client:', quote_data['client_name']],
+        ['Status:', quote_data['status'].title()],
+        ['Estimated Cost:', f"${quote_data['estimated_cost']:.2f}"]
+    ]
+    
+    quote_table = Table(quote_info, colWidths=[2*inch, 4*inch])
+    quote_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F3F4F6')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#E5E7EB')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    
+    story.append(quote_table)
+    story.append(Spacer(1, 20))
+    
+    # Product Specifications
+    story.append(Paragraph("Product Specifications", heading_style))
+    
+    specs_data = [
+        ['Product Type:', quote_data['product_type']],
+        ['Finished Size:', quote_data['finished_size']],
+        ['Page Count:', str(quote_data['page_count'])],
+        ['Printing:', quote_data['sidedness'].title() + ' Sided'],
+        ['Quantity:', f"{quote_data['quantity']:,}"],
+        ['Ink Type:', quote_data['ink_type']],
+    ]
+    
+    if quote_data['pms_colors']:
+        specs_data.append(['PMS Colors:', f"{quote_data['pms_color_count']} colors"])
+    
+    if quote_data['cover_stock']:
+        specs_data.append(['Cover Stock:', quote_data['cover_stock']])
+    
+    if quote_data['text_stock']:
+        specs_data.append(['Text Stock:', quote_data['text_stock']])
+    
+    specs_table = Table(specs_data, colWidths=[2*inch, 4*inch])
+    specs_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F3F4F6')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#E5E7EB')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    
+    story.append(specs_table)
+    story.append(Spacer(1, 20))
+    
+    # Finishing Options
+    if quote_data['finishing_options']:
+        story.append(Paragraph("Finishing Options", heading_style))
+        finishing_text = ", ".join(quote_data['finishing_options'])
+        story.append(Paragraph(finishing_text, styles['Normal']))
+        story.append(Spacer(1, 20))
+    
+    # Delivery Information
+    story.append(Paragraph("Delivery Information", heading_style))
+    delivery_data = [
+        ['Delivery Location:', quote_data['delivery_location']],
+    ]
+    
+    if quote_data['special_requirements']:
+        delivery_data.append(['Special Requirements:', quote_data['special_requirements']])
+    
+    delivery_table = Table(delivery_data, colWidths=[2*inch, 4*inch])
+    delivery_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F3F4F6')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#E5E7EB')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    
+    story.append(delivery_table)
+    story.append(Spacer(1, 30))
+    
+    # Total Cost
+    story.append(Paragraph("Total Estimated Cost", heading_style))
+    cost_para = Paragraph(
+        f"<font size=16><b>${quote_data['estimated_cost']:.2f}</b></font>",
+        styles['Normal']
+    )
+    story.append(cost_para)
+    
+    # Build PDF
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
 
 # API endpoints
 @app.get("/")
