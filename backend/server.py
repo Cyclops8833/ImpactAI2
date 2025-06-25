@@ -34,11 +34,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# MongoDB connection
+# MongoDB connection with error handling
 MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
-client = MongoClient(MONGO_URL)
-db = client.print_quotes
-quotes_collection = db.quotes
+
+try:
+    client = MongoClient(MONGO_URL)
+    # Test the connection
+    client.admin.command('ping')
+    db = client.impactai_quotes  # Use a specific database name
+    quotes_collection = db.quotes
+    logger.info("Successfully connected to MongoDB")
+except Exception as e:
+    logger.error(f"Failed to connect to MongoDB: {str(e)}")
+    raise e
 
 # Pydantic models
 class QuoteRequest(BaseModel):
