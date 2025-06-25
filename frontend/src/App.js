@@ -7,7 +7,7 @@ const productTypes = [
 
 const finishedSizes = [
   'A6 (105 × 148mm)', 'A5 (148 × 210mm)', 'A4 (210 × 297mm)', 'A3 (297 × 420mm)', 
-  'DL (99 × 210mm)', 'A6 Long (210 × 105mm)', 'Custom Size'
+  'DL (99 × 210mm)', 'Custom Size'
 ];
 
 const coverStockOptions = [
