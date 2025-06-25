@@ -79,13 +79,31 @@ function App() {
     setSubmitMessage('');
 
     try {
+      // Convert camelCase to snake_case for backend API
+      const convertedData = {
+        client_name: formData.clientName,
+        product_type: formData.productType,
+        finished_size: formData.finishedSize,
+        page_count: parseInt(formData.pageCount),
+        sidedness: formData.sidedness,
+        cover_stock: formData.coverStock,
+        text_stock: formData.textStock,
+        finishing_options: formData.finishingOptions,
+        quantity: parseInt(formData.quantity),
+        delivery_location: formData.deliveryLocation,
+        special_requirements: formData.specialRequirements,
+        ink_type: formData.inkType,
+        pms_colors: formData.pmsColors,
+        pms_color_count: parseInt(formData.pmsColorCount)
+      };
+
       const backendUrl = process.env.REACT_APP_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL;
       const response = await fetch(`${backendUrl}/api/quotes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(convertedData),
       });
 
       if (response.ok) {
