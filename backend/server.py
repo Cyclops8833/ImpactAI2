@@ -196,6 +196,9 @@ def calculate_quote_cost(quote_data: QuoteRequest) -> float:
     discounted_cost = total_print_cost * (1 - quantity_discount)
     total_cost = discounted_cost + delivery_cost
     
+    # Return the calculated cost
+    return round(total_cost, 2)
+    
 def generate_quote_pdf(quote_data):
     """Generate PDF quote document"""
     buffer = io.BytesIO()
