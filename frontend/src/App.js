@@ -172,8 +172,8 @@ function App() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">Print Quote Assistant</h1>
-          <p className="text-gray-600 text-lg">Professional Quote Generation Tool</p>
+          <h1 className="text-4xl font-bold text-gray-800 mb-2">ImpactAI Quote Assistant</h1>
+          <p className="text-gray-600 text-lg">Quote Generation Tool v1</p>
           <div className="w-24 h-1 bg-indigo-500 mx-auto mt-4 rounded-full"></div>
         </div>
 
