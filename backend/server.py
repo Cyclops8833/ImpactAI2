@@ -6,27 +6,24 @@ from typing import List, Optional
 import os
 from datetime import datetime
 import uuid
-from pymongo import MongoClient
 import logging
+import mysql.connector
+from dotenv import load_dotenv
 import time
 import io
 from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import inch
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib import colors
 
-# Configure logging
+# Setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Initialize FastAPI app
 app = FastAPI(title="Print Quote Assistant API", version="1.0.0")
 
-# CORS configuration for production
 ALLOWED_ORIGINS = os.environ.get('ALLOWED_ORIGINS', '*').split(',')
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
@@ -35,53 +32,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# MongoDB connection with error handling
-MONGO_URL = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+# DB setup
+load_dotenv()
+db = mysql.connector.connect(
+    host=os.getenv("MYSQL_HOST"),
+    user=os.getenv("MYSQL_USER"),
+    password=os.getenv("MYSQL_PASSWORD"),
+    database=os.getenv("MYSQL_DATABASE")
+)
+cursor = db.cursor(dictionary=True)
 
-try:
-    client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000)
-    # Test the connection with retry logic
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            client.admin.command('ping')
-            break
-        except Exception as e:
-            if attempt == max_retries - 1:
-                raise e
-            logger.warning(f"MongoDB connection attempt {attempt + 1} failed, retrying...")
-            time.sleep(2)
-    
-    db = client.impactai_quotes  # Use a specific database name
-    quotes_collection = db.quotes
-    logger.info("Successfully connected to MongoDB")
-except Exception as e:
-    logger.error(f"Failed to connect to MongoDB: {str(e)}")
-    logger.error("This is normal during local development with new Atlas clusters")
-    logger.error("The connection should work fine in production deployment")
-    # Don't raise the error in production, let the app start
-    if os.environ.get('PORT'):  # If PORT is set, we're in production
-        db = None
-        quotes_collection = None
-    else:
-        raise e
-
-# Pydantic models
+# Models
 class QuoteRequest(BaseModel):
-    client_name: str = Field(..., min_length=1, description="Client name")
-    product_type: str = Field(..., description="Type of product to print")
-    finished_size: str = Field(..., description="Finished size of the product")
-    page_count: int = Field(..., gt=0, description="Number of pages")
-    sidedness: str = Field(..., description="Single or double sided")
-    cover_stock: Optional[str] = Field(None, description="Cover stock type")
-    text_stock: Optional[str] = Field(None, description="Text stock type")
-    finishing_options: List[str] = Field(default=[], description="List of finishing options")
-    quantity: int = Field(..., gt=0, description="Quantity to print")
-    delivery_location: str = Field(..., description="Delivery location")
-    special_requirements: Optional[str] = Field(None, description="Special requirements")
-    ink_type: str = Field(..., description="Ink type (CMYK, Black Only, Custom)")
-    pms_colors: bool = Field(default=False, description="PMS colors required")
-    pms_color_count: int = Field(default=1, description="Number of PMS colors")
+    client_name: str = Field(..., min_length=1)
+    product_type: str
+    finished_size: str
+    page_count: int
+    sidedness: str
+    cover_stock: Optional[str]
+    text_stock: Optional[str]
+    finishing_options: List[str] = []
+    quantity: int
+    delivery_location: str
+    special_requirements: Optional[str]
+    ink_type: str
+    pms_colors: bool = False
+    pms_color_count: int = 1
 
 class QuoteResponse(BaseModel):
     quote_id: str
@@ -105,442 +81,162 @@ class QuoteDetail(QuoteResponse):
     pms_colors: bool
     pms_color_count: int
 
-# Quote calculation logic
+# Quote cost logic
 def calculate_quote_cost(quote_data: QuoteRequest) -> float:
-    """
-    Calculate estimated cost based on quote parameters
-    This is a simplified calculation - in production this would be more complex
-    """
-    base_cost = 0.0
-    
-    # Base cost by product type
-    product_costs = {
-        'Booklet': 2.50,
-        'Brochure': 1.80,
-        'Flyer': 0.50,
-        'Signage': 15.00,
-        'Business Cards': 0.25,
-        'Posters': 8.00,
-        'Banners': 25.00,
-        'Stickers': 1.20,
-        'Catalogues': 3.50,
-        'Newsletters': 1.60
-    }
-    
-    base_cost = product_costs.get(quote_data.product_type, 2.00)
-    
-    # Size multiplier
-    size_multipliers = {
-        'A6': 0.8,
-        'A5': 1.0,
-        'A4': 1.2,
-        'A3': 1.8,
-        'DL': 0.9,
-        'Custom': 1.5
-    }
-    
-    size_key = quote_data.finished_size.split(' ')[0]  # Extract size prefix
-    size_multiplier = size_multipliers.get(size_key, 1.0)
-    
-    # Page count multiplier
-    page_multiplier = max(1.0, quote_data.page_count * 0.3)
-    
-    # Sidedness multiplier
-    sidedness_multiplier = 1.6 if quote_data.sidedness == 'double' else 1.0
-    
-    # Stock costs
+    base_cost = {
+        'Booklet': 2.5, 'Brochure': 1.8, 'Flyer': 0.5, 'Signage': 15,
+        'Business Cards': 0.25, 'Posters': 8, 'Banners': 25,
+        'Stickers': 1.2, 'Catalogues': 3.5, 'Newsletters': 1.6
+    }.get(quote_data.product_type, 2.0)
+    size_mult = {
+        'A6': 0.8, 'A5': 1.0, 'A4': 1.2, 'A3': 1.8, 'DL': 0.9, 'Custom': 1.5
+    }.get(quote_data.finished_size.split(' ')[0], 1.0)
+    page_mult = max(1.0, quote_data.page_count * 0.3)
+    sided_mult = 1.6 if quote_data.sidedness == 'double' else 1.0
     stock_cost = 0.0
     if quote_data.cover_stock:
         if '300gsm' in quote_data.cover_stock or '350gsm' in quote_data.cover_stock:
-            stock_cost += 0.30
+            stock_cost += 0.3
         elif '400gsm' in quote_data.cover_stock:
-            stock_cost += 0.50
-    
+            stock_cost += 0.5
     if quote_data.text_stock:
         if '150gsm' in quote_data.text_stock or '170gsm' in quote_data.text_stock:
-            stock_cost += 0.20
+            stock_cost += 0.2
         elif '200gsm' in quote_data.text_stock or '250gsm' in quote_data.text_stock:
             stock_cost += 0.35
-    
-    # Finishing costs
-    finishing_costs = {
-        'Matt Laminate': 0.40,
-        'Gloss Laminate': 0.40,
-        'Spot UV': 0.80,
-        'Foiling (Gold)': 1.20,
-        'Foiling (Silver)': 1.00,
-        'Foiling (Other)': 1.30,
-        'Embossing': 1.50,
-        'Debossing': 1.50,
-        'Die Cutting': 2.00,
-        'Perfect Binding': 1.80,
-        'Saddle Stitching': 0.60
-    }
-    
-    finishing_cost = sum(finishing_costs.get(option, 0.0) for option in quote_data.finishing_options)
-    
-    # Ink costs
-    ink_costs = {
-        'CMYK': 0.15,
-        'Black Only': 0.05,
-        'Custom': 0.25
-    }
-    
-    ink_cost = ink_costs.get(quote_data.ink_type, 0.10)
-    
-    # PMS color costs
-    pms_cost = 0.0
-    if quote_data.pms_colors:
-        pms_cost = quote_data.pms_color_count * 0.35
-    
-    # Delivery costs
-    delivery_costs = {
-        'Metro Melbourne': 15.00,
-        'Regional Victoria': 25.00,
-        'Interstate (NSW)': 35.00,
-        'Interstate (QLD)': 40.00,
-        'Interstate (SA)': 35.00,
-        'Interstate (WA)': 50.00,
-        'Interstate (TAS)': 45.00,
-        'Interstate (NT)': 55.00,
-        'Interstate (ACT)': 30.00
-    }
-    
-    delivery_cost = delivery_costs.get(quote_data.delivery_location, 30.00)
-    
-    # Quantity discount
-    if quote_data.quantity >= 1000:
-        quantity_discount = 0.15
-    elif quote_data.quantity >= 500:
-        quantity_discount = 0.10
-    elif quote_data.quantity >= 100:
-        quantity_discount = 0.05
-    else:
-        quantity_discount = 0.0
-    
-    # Calculate total
-    unit_cost = base_cost * size_multiplier * page_multiplier * sidedness_multiplier + stock_cost + finishing_cost + ink_cost + pms_cost
-    total_print_cost = unit_cost * quote_data.quantity
-    discounted_cost = total_print_cost * (1 - quantity_discount)
-    total_cost = discounted_cost + delivery_cost
-    
-    # Return the calculated cost
+    finish_cost = sum({
+        'Matt Laminate': 0.4, 'Gloss Laminate': 0.4, 'Spot UV': 0.8,
+        'Foiling (Gold)': 1.2, 'Foiling (Silver)': 1.0, 'Foiling (Other)': 1.3,
+        'Embossing': 1.5, 'Debossing': 1.5, 'Die Cutting': 2.0,
+        'Perfect Binding': 1.8, 'Saddle Stitching': 0.6
+    }.get(f, 0.0) for f in quote_data.finishing_options)
+    ink_cost = {'CMYK': 0.15, 'Black Only': 0.05, 'Custom': 0.25}.get(quote_data.ink_type, 0.1)
+    pms_cost = quote_data.pms_color_count * 0.35 if quote_data.pms_colors else 0
+    delivery_cost = {
+        'Metro Melbourne': 15, 'Regional Victoria': 25, 'Interstate (NSW)': 35,
+        'Interstate (QLD)': 40, 'Interstate (SA)': 35, 'Interstate (WA)': 50,
+        'Interstate (TAS)': 45, 'Interstate (NT)': 55, 'Interstate (ACT)': 30
+    }.get(quote_data.delivery_location, 30)
+    discount = 0.15 if quote_data.quantity >= 1000 else 0.1 if quote_data.quantity >= 500 else 0.05 if quote_data.quantity >= 100 else 0.0
+    unit_cost = base_cost * size_mult * page_mult * sided_mult + stock_cost + finish_cost + ink_cost + pms_cost
+    total_cost = unit_cost * quote_data.quantity * (1 - discount) + delivery_cost
     return round(total_cost, 2)
-    
+
 def generate_quote_pdf(quote_data):
-    """Generate PDF quote document"""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch)
-    
-    # Styles
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5 * inch)
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=20,
-        spaceAfter=30,
-        textColor=colors.HexColor('#4F46E5'),
-        alignment=1  # Center alignment
-    )
-    
-    heading_style = ParagraphStyle(
-        'CustomHeading',
-        parent=styles['Heading2'],
-        fontSize=14,
-        spaceAfter=12,
-        textColor=colors.HexColor('#1F2937')
-    )
-    
-    # Story (content)
-    story = []
-    
-    # Title
-    story.append(Paragraph("PRINT QUOTE", title_style))
+    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=20, alignment=1, textColor=colors.HexColor('#4F46E5'))
+    heading = ParagraphStyle('Heading', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor('#1F2937'))
+    story = [Paragraph("PRINT QUOTE", title_style), Spacer(1, 20)]
+    story.append(Paragraph("Quote Information", heading))
+    info = [['Quote ID:', quote_data['quote_id']], ['Date:', quote_data['created_at'].strftime('%d/%m/%Y')],
+            ['Client:', quote_data['client_name']], ['Status:', quote_data['status'].title()],
+            ['Estimated Cost:', f"${quote_data['estimated_cost']:.2f}"]]
+    story.append(Table(info, colWidths=[2*inch, 4*inch]))
     story.append(Spacer(1, 20))
-    
-    # Quote Information
-    story.append(Paragraph("Quote Information", heading_style))
-    quote_info = [
-        ['Quote ID:', quote_data['quote_id']],
-        ['Date:', quote_data['created_at'].strftime('%d/%m/%Y')],
-        ['Client:', quote_data['client_name']],
-        ['Status:', quote_data['status'].title()],
-        ['Estimated Cost:', f"${quote_data['estimated_cost']:.2f}"]
-    ]
-    
-    quote_table = Table(quote_info, colWidths=[2*inch, 4*inch])
-    quote_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F3F4F6')),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#E5E7EB')),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-    ]))
-    
-    story.append(quote_table)
-    story.append(Spacer(1, 20))
-    
-    # Product Specifications
-    story.append(Paragraph("Product Specifications", heading_style))
-    
-    specs_data = [
-        ['Product Type:', quote_data['product_type']],
-        ['Finished Size:', quote_data['finished_size']],
-        ['Page Count:', str(quote_data['page_count'])],
-        ['Printing:', quote_data['sidedness'].title() + ' Sided'],
-        ['Quantity:', f"{quote_data['quantity']:,}"],
-        ['Ink Type:', quote_data['ink_type']],
-    ]
-    
+    story.append(Paragraph("Product Specifications", heading))
+    specs = [['Product Type:', quote_data['product_type']],
+             ['Finished Size:', quote_data['finished_size']],
+             ['Page Count:', str(quote_data['page_count'])],
+             ['Printing:', quote_data['sidedness'].title() + ' Sided'],
+             ['Quantity:', str(quote_data['quantity'])],
+             ['Ink Type:', quote_data['ink_type']]]
     if quote_data['pms_colors']:
-        specs_data.append(['PMS Colors:', f"{quote_data['pms_color_count']} colors"])
-    
+        specs.append(['PMS Colors:', str(quote_data['pms_color_count'])])
     if quote_data['cover_stock']:
-        specs_data.append(['Cover Stock:', quote_data['cover_stock']])
-    
+        specs.append(['Cover Stock:', quote_data['cover_stock']])
     if quote_data['text_stock']:
-        specs_data.append(['Text Stock:', quote_data['text_stock']])
-    
-    specs_table = Table(specs_data, colWidths=[2*inch, 4*inch])
-    specs_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F3F4F6')),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#E5E7EB')),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-    ]))
-    
-    story.append(specs_table)
-    story.append(Spacer(1, 20))
-    
-    # Finishing Options
+        specs.append(['Text Stock:', quote_data['text_stock']])
+    story.append(Table(specs, colWidths=[2*inch, 4*inch]))
     if quote_data['finishing_options']:
-        story.append(Paragraph("Finishing Options", heading_style))
-        finishing_text = ", ".join(quote_data['finishing_options'])
-        story.append(Paragraph(finishing_text, styles['Normal']))
-        story.append(Spacer(1, 20))
-    
-    # Delivery Information
-    story.append(Paragraph("Delivery Information", heading_style))
-    delivery_data = [
-        ['Delivery Location:', quote_data['delivery_location']],
-    ]
-    
+        story.append(Paragraph("Finishing Options", heading))
+        story.append(Paragraph(", ".join(quote_data['finishing_options']), styles['Normal']))
+    story.append(Paragraph("Delivery Location: " + quote_data['delivery_location'], styles['Normal']))
     if quote_data['special_requirements']:
-        delivery_data.append(['Special Requirements:', quote_data['special_requirements']])
-    
-    delivery_table = Table(delivery_data, colWidths=[2*inch, 4*inch])
-    delivery_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F3F4F6')),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#E5E7EB')),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-    ]))
-    
-    story.append(delivery_table)
+        story.append(Paragraph("Special Requirements: " + quote_data['special_requirements'], styles['Normal']))
     story.append(Spacer(1, 30))
-    
-    # Total Cost
-    story.append(Paragraph("Total Estimated Cost", heading_style))
-    cost_para = Paragraph(
-        f"<font size=16><b>${quote_data['estimated_cost']:.2f}</b></font>",
-        styles['Normal']
-    )
-    story.append(cost_para)
-    
-    # Build PDF
+    story.append(Paragraph("Total Estimated Cost", heading))
+    story.append(Paragraph(f"<b>${quote_data['estimated_cost']:.2f}</b>", styles['Normal']))
     doc.build(story)
     buffer.seek(0)
     return buffer
 
-# API endpoints
-@app.get("/")
-async def root():
-    return {"message": "Print Quote Assistant API", "status": "running"}
-
 @app.post("/api/quotes", response_model=QuoteResponse)
 async def create_quote(quote_request: QuoteRequest):
-    """Create a new quote"""
     try:
-        # Generate unique quote ID
         quote_id = str(uuid.uuid4())[:8].upper()
-        
-        # Calculate estimated cost
         estimated_cost = calculate_quote_cost(quote_request)
-        
-        # Create quote document
-        quote_doc = {
-            "quote_id": quote_id,
-            "client_name": quote_request.client_name,
-            "product_type": quote_request.product_type,
-            "finished_size": quote_request.finished_size,
-            "page_count": quote_request.page_count,
-            "sidedness": quote_request.sidedness,
-            "cover_stock": quote_request.cover_stock,
-            "text_stock": quote_request.text_stock,
-            "finishing_options": quote_request.finishing_options,
-            "quantity": quote_request.quantity,
-            "delivery_location": quote_request.delivery_location,
-            "special_requirements": quote_request.special_requirements,
-            "ink_type": quote_request.ink_type,
-            "pms_colors": quote_request.pms_colors,
-            "pms_color_count": quote_request.pms_color_count,
-            "estimated_cost": estimated_cost,
-            "created_at": datetime.utcnow(),
-            "status": "pending"
-        }
-        
-        # Insert into database
-        result = quotes_collection.insert_one(quote_doc)
-        
-        if result.inserted_id:
-            logger.info(f"Quote created successfully: {quote_id}")
-            return QuoteResponse(
-                quote_id=quote_id,
-                client_name=quote_request.client_name,
-                product_type=quote_request.product_type,
-                estimated_cost=estimated_cost,
-                created_at=quote_doc["created_at"],
-                status="pending"
-            )
-        else:
-            raise HTTPException(status_code=500, detail="Failed to create quote")
-            
+        cursor.execute("""
+            INSERT INTO quotes (
+                quote_id, client_name, product_type, finished_size, page_count, sidedness,
+                cover_stock, text_stock, finishing_options, quantity, delivery_location,
+                special_requirements, ink_type, pms_colors, pms_color_count, estimated_cost,
+                created_at, status
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            quote_id, quote_request.client_name, quote_request.product_type,
+            quote_request.finished_size, quote_request.page_count, quote_request.sidedness,
+            quote_request.cover_stock, quote_request.text_stock,
+            ",".join(quote_request.finishing_options), quote_request.quantity,
+            quote_request.delivery_location, quote_request.special_requirements,
+            quote_request.ink_type, quote_request.pms_colors, quote_request.pms_color_count,
+            estimated_cost, datetime.utcnow(), "pending"
+        ))
+        db.commit()
+        return QuoteResponse(quote_id=quote_id, client_name=quote_request.client_name,
+            product_type=quote_request.product_type, estimated_cost=estimated_cost,
+            created_at=datetime.utcnow(), status="pending")
     except Exception as e:
-        logger.error(f"Error creating quote: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-@app.get("/api/quotes", response_model=List[QuoteResponse])
-async def get_quotes(limit: int = 50, offset: int = 0):
-    """Get all quotes with pagination"""
-    try:
-        quotes = list(quotes_collection.find(
-            {"estimated_cost": {"$exists": True, "$ne": None}},  # Only get quotes with valid estimated_cost
-            {
-                "quote_id": 1,
-                "client_name": 1,
-                "product_type": 1,
-                "estimated_cost": 1,
-                "created_at": 1,
-                "status": 1,
-                "_id": 0
-            }
-        ).sort("created_at", -1).skip(offset).limit(limit))
-        
-        return [QuoteResponse(**quote) for quote in quotes]
-        
-    except Exception as e:
-        logger.error(f"Error fetching quotes: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        logger.error(f"Insert error: {str(e)}")
+        raise HTTPException(status_code=500, detail="DB insert error")
 
 @app.get("/api/quotes/{quote_id}", response_model=QuoteDetail)
-async def get_quote_detail(quote_id: str):
-    """Get detailed quote information"""
-    try:
-        quote = quotes_collection.find_one({"quote_id": quote_id}, {"_id": 0})
-        
-        if not quote:
-            raise HTTPException(status_code=404, detail="Quote not found")
-        
-        return QuoteDetail(**quote)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching quote detail: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+async def get_quote(quote_id: str):
+    cursor.execute("SELECT * FROM quotes WHERE quote_id = %s", (quote_id,))
+    row = cursor.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Quote not found")
+    row["finishing_options"] = row["finishing_options"].split(",") if row["finishing_options"] else []
+    return row
+
+@app.get("/api/quotes", response_model=List[QuoteResponse])
+async def list_quotes():
+    cursor.execute("SELECT quote_id, client_name, product_type, estimated_cost, created_at, status FROM quotes")
+    rows = cursor.fetchall()
+    return rows
 
 @app.put("/api/quotes/{quote_id}/status")
-async def update_quote_status(quote_id: str, status: str):
-    """Update quote status"""
-    try:
-        valid_statuses = ["pending", "approved", "rejected", "completed"]
-        if status not in valid_statuses:
-            raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
-        
-        result = quotes_collection.update_one(
-            {"quote_id": quote_id},
-            {"$set": {"status": status, "updated_at": datetime.utcnow()}}
-        )
-        
-        if result.matched_count == 0:
-            raise HTTPException(status_code=404, detail="Quote not found")
-        
-        return {"message": f"Quote status updated to {status}"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating quote status: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-@app.get("/api/quotes/{quote_id}/export")
-async def export_quote(quote_id: str):
-    """Export quote as PDF"""
-    try:
-        quote = quotes_collection.find_one({"quote_id": quote_id}, {"_id": 0})
-        
-        if not quote:
-            raise HTTPException(status_code=404, detail="Quote not found")
-        
-        # Generate PDF
-        pdf_buffer = generate_quote_pdf(quote)
-        
-        return StreamingResponse(
-            io.BytesIO(pdf_buffer.read()),
-            media_type="application/pdf",
-            headers={"Content-Disposition": f"attachment; filename=quote_{quote_id}.pdf"}
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error exporting quote: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+async def update_status(quote_id: str, status: str):
+    cursor.execute("UPDATE quotes SET status = %s WHERE quote_id = %s", (status, quote_id))
+    db.commit()
+    return {"message": "Status updated"}
 
 @app.delete("/api/quotes/{quote_id}")
 async def delete_quote(quote_id: str):
-    """Delete a quote"""
-    try:
-        result = quotes_collection.delete_one({"quote_id": quote_id})
-        
-        if result.deleted_count == 0:
-            raise HTTPException(status_code=404, detail="Quote not found")
-        
-        return {"message": "Quote deleted successfully"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error deleting quote: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    cursor.execute("DELETE FROM quotes WHERE quote_id = %s", (quote_id,))
+    db.commit()
+    return {"message": "Quote deleted"}
 
-# Health check endpoint
+@app.get("/api/quotes/{quote_id}/export")
+async def export_quote_pdf(quote_id: str):
+    cursor.execute("SELECT * FROM quotes WHERE quote_id = %s", (quote_id,))
+    row = cursor.fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Quote not found")
+    row["finishing_options"] = row["finishing_options"].split(",") if row["finishing_options"] else []
+    pdf_stream = generate_quote_pdf(row)
+    return StreamingResponse(pdf_stream, media_type="application/pdf", headers={"Content-Disposition": f"attachment; filename=quote_{quote_id}.pdf"})
+
 @app.get("/api/health")
-async def health_check():
-    """Health check endpoint"""
+def health_check():
     try:
-        # Test database connection
-        quotes_collection.find_one()
-        return {
-            "status": "healthy",
-            "timestamp": datetime.utcnow(),
-            "database": "connected"
-        }
+        cursor.execute("SELECT 1")
+        return {"status": "ok"}
     except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        raise HTTPException(status_code=503, detail="Service unavailable")
+        logger.error(f"Health check failed: {e}")
+        return {"status": "fail", "error": str(e)}
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+@app.get("/")
+async def root():
+    return {"message": "Print Quote Assistant API", "status": "running"}
